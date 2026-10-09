@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>BCI Runner - Temple Explorer Edition</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Trebuchet+MS:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=2026">
+  <script type="importmap">
+    { "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+  </script>
+</head>
+<body>
+  <div id="game-container"></div>
+
+  <div id="ui-overlay">
+
+    <!-- Main menu -->
+    <div id="screen-main-menu" class="ui-screen active">
+      <div class="menu-layout">
+        <header class="brand">
+          <div class="temple-icon">🔥 🗿 🔥</div>
+          <h1 class="temple-title">TEMPLE BCI RUNNER</h1>
+          <p class="tagline">Escape the ancient temple ruins! Steer your explorer using EEG brain signals (or keyboard simulation).</p>
+          
+          <div class="chips">
+            <div class="chip"><span>RECORD DISTANCE</span><b id="menu-high-score">0</b></div>
+            <div class="chip"><span>TEMPLE IDOLS</span><b id="menu-total-coins">0</b></div>
+            <div class="chip live"><i class="pulse-dot"></i>EEG SIMULATOR ONLINE</div>
+          </div>
+        </header>
+
+        <nav class="panel menu-panel stone-tablet">
+          <button id="btn-play" class="btn btn-primary btn-lg">🗿 RUN FOR YOUR LIFE</button>
+          <button id="btn-char-select" class="btn btn-secondary">🤠 EXPLORER AVATARS</button>
+          <button id="btn-level-select" class="btn btn-secondary">📜 TEMPLE MAPS</button>
+          <button id="btn-settings" class="btn btn-secondary">⚙️ BCI & SPEED TUNING</button>
+
+          <div class="keymap">
+            <h3>ANCIENT BCI CONTROLS</h3>
+            <div class="key-row"><kbd>↑</kbd><span>Leap Hurdle</span><em>Blink Spike</em></div>
+            <div class="key-row"><kbd>↓</kbd><span>Duck Arch</span><em>Alpha Rise</em></div>
+            <div class="key-row"><kbd>←</kbd><span>Steer Left</span><em>Beta Left</em></div>
+            <div class="key-row"><kbd>→</kbd><span>Steer Right</span><em>Beta Right</em></div>
+          </div>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Runner select -->
+    <div id="screen-char-select" class="ui-screen">
+      <div class="panel wide stone-tablet">
+        <h2>Choose Your Explorer</h2>
+        <p class="subtext">Select an adventurer avatar to navigate the ruins!</p>
+        <div class="char-grid">
+          <button class="char-card active" data-skin="0">
+            <div class="char-avatar" style="--c:#d4af37">🤠</div>
+            <h3>Guy Dangerous</h3>
+            <p>Classic temple explorer</p>
+          </button>
+          <button class="char-card" data-skin="1">
+            <div class="char-avatar" style="--c:#ef4444">🦊</div>
+            <h3>Scarlett Fox</h3>
+            <p>Agile jungle tracker</p>
+          </button>
+          <button class="char-card" data-skin="2">
+            <div class="char-avatar" style="--c:#eab308">🧘</div>
+            <h3>Karma Lee</h3>
+            <p>Golden martial artist</p>
+          </button>
+          <button class="char-card" data-skin="3">
+            <div class="char-avatar" style="--c:#8b5cf6">🗿</div>
+            <h3>Zack Wonder</h3>
+            <p>Armored relic hunter</p>
+          </button>
+        </div>
+        <div class="actions">
+          <button id="btn-char-confirm" class="btn btn-primary">SELECT EXPLORER</button>
+          <button id="btn-char-back" class="btn btn-secondary">BACK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Level select -->
+    <div id="screen-level-select" class="ui-screen">
+      <div class="panel wide stone-tablet">
+        <h2>Temple Expedition Maps</h2>
+        <p class="subtext">Uncover ancient ruins and spell holy relics to advance!</p>
+        <div class="level-grid">
+          <button class="level-card active" data-level="1">
+            <span class="lvl-badge">MAP 1</span>
+            <h3>Jungle Ruins</h3>
+            <p>200 Idols • 500 m • Spell BCI</p>
+          </button>
+          <button class="level-card locked" data-level="2" aria-disabled="true">
+            <span class="lvl-badge">MAP 2 · LOCKED</span>
+            <h3>Volcano Chasm</h3>
+            <p>400 Idols • 1000 m • Spell SUBWAY</p>
+          </button>
+          <button class="level-card locked" data-level="3" aria-disabled="true">
+            <span class="lvl-badge">MAP 3 · LOCKED</span>
+            <h3>Golden Tomb</h3>
+            <p>600 Idols • 1500 m • Spell RUNNER</p>
+          </button>
+        </div>
+        <div class="actions">
+          <button id="btn-level-back" class="btn btn-secondary">BACK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div id="screen-settings" class="ui-screen">
+      <div class="panel stone-tablet">
+        <h2>Expedition Speed & BCI Tuning</h2>
+        <p class="subtext">Adjust running speed and reaction windows for BCI intent decoders.</p>
+        <div class="settings-form">
+          <div class="setting-item">
+            <label for="setting-speed">Running Speed</label>
+            <select id="setting-speed" class="select-input">
+              <option value="SLOW" selected>Slow Explorer (Recommended for BCI)</option>
+              <option value="VERY_SLOW">Very Slow (Training Pace)</option>
+              <option value="NORMAL">Normal Sprint</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label for="setting-window">BCI Look-Ahead Window</label>
+            <select id="setting-window" class="select-input">
+              <option value="LONG" selected>Long (~4s reaction buffer)</option>
+              <option value="MEDIUM">Medium (~3s buffer)</option>
+              <option value="SHORT">Short (~2s buffer)</option>
+            </select>
+          </div>
+          <label class="check" for="setting-training">
+            <input type="checkbox" id="setting-training">
+            <span>Explorer Armor: Traps never end the run</span>
+          </label>
+        </div>
+        <div class="actions">
+          <button id="btn-settings-save" class="btn btn-primary">SAVE TUNING</button>
+          <button id="btn-settings-back" class="btn btn-secondary">BACK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HUD -->
+    <div id="screen-hud" class="ui-screen">
+      <div class="hud-top-left">
+        <div class="stat-box"><span class="stat-label">SCORE</span><span id="hud-score" class="stat-value">0</span></div>
+        <div class="stat-box"><span class="stat-label">DISTANCE</span><span id="hud-distance" class="stat-value">0 m</span></div>
+        <div class="stat-box word-box">
+          <span class="stat-label">RELIC WORD</span>
+          <div id="hud-word-letters" class="word-letters-container"></div>
+        </div>
+      </div>
+
+      <div class="hud-top-right">
+        <div class="stat-box coin-box"><span class="coin-icon">🌕</span><span id="hud-coins" class="stat-value">0</span></div>
+        <button id="btn-mute" class="btn btn-icon" aria-label="Toggle sound" title="Sound">🔊</button>
+        <button id="btn-pause" class="btn btn-icon" aria-label="Pause" title="Pause">⏸</button>
+      </div>
+
+      <div id="hud-powerups" class="hud-powerups-bar"></div>
+      <div id="hud-cmd" class="hud-cmd" aria-live="polite"></div>
+      <div id="hud-toast" class="hud-toast-banner" role="status"></div>
+    </div>
+
+    <!-- Pause -->
+    <div id="screen-pause" class="ui-screen">
+      <div class="panel narrow stone-tablet">
+        <h2>Expedition Paused</h2>
+        <div class="stack">
+          <button id="btn-pause-resume" class="btn btn-primary btn-lg">RESUME RUN</button>
+          <button id="btn-pause-restart" class="btn btn-secondary">RESTART MAP</button>
+          <button id="btn-pause-main" class="btn btn-secondary">MAIN MENU</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Level complete -->
+    <div id="screen-level-complete" class="ui-screen">
+      <div class="panel narrow stone-tablet">
+        <h2 class="win">🏆 TEMPLE MAP ESCAPED!</h2>
+        <p class="subtext">flawless brain navigation! Ancient targets achieved!</p>
+        <ul class="objectives">
+          <li id="obj-coins">Gold Coins Collected</li>
+          <li id="obj-distance">Temple Run Distance Reached</li>
+          <li id="obj-word">Ancient Relic Word Spelled</li>
+        </ul>
+        <div class="actions">
+          <button id="btn-next-level" class="btn btn-primary btn-lg">NEXT MAP</button>
+          <button id="btn-complete-main" class="btn btn-secondary">MAIN MENU</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game over -->
+    <div id="screen-game-over" class="ui-screen">
+      <div class="panel narrow stone-tablet">
+        <h2 class="lose">💀 TRAPPED BY THE RUINS!</h2>
+        <div id="high-score-banner" class="high-score-banner">★ NEW RECORD RUN! ★</div>
+        <div class="final-stats">
+          <div><span>SCORE</span><b id="final-score">0</b></div>
+          <div><span>IDOLS</span><b id="final-coins">0</b></div>
+          <div><span>DISTANCE</span><b id="final-distance">0 m</b></div>
+        </div>
+        <p class="hint">Tip: Activate Explorer Armor in Settings to practice without falling into traps!</p>
+        <div class="actions">
+          <button id="btn-restart" class="btn btn-primary btn-lg">TRY AGAIN</button>
+          <button id="btn-over-char" class="btn btn-secondary">EXPLORERS</button>
+          <button id="btn-over-main" class="btn btn-secondary">MAIN MENU</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module" src="js/main.js?v=2026"></script>
+</body>
+</html>
