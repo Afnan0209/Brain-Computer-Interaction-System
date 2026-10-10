@@ -1,0 +1,18 @@
+# Machine Learning Models
+saved_models/
+*.joblib
+*.pkl
+*.h5
+
+# Raw & Processed Datasets
+cleaned_datasets/
+features/
+*.edf
+*.csv
+
+# Python Caches & Environments
+__pycache__/
+*.pyc
+.env
+venv/
+env/

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BioAmp EEG Signal Monitor & Recorder</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #121212;
+      color: #ffffff;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+    .card {
+      background: #1e1e2e;
+      border-radius: 12px;
+      padding: 25px;
+      max-width: 800px;
+      margin: 0 auto;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+    h1 { color: #00f2c3; margin-bottom: 5px; }
+    p { color: #a0a0a0; font-size: 0.9rem; }
+    .btn {
+      border: none;
+      padding: 12px 24px;
+      font-size: 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      margin: 10px 5px;
+      transition: 0.2s;
+      color: #121212;
+    }
+    #connectBtn { background: #00f2c3; }
+    #connectBtn:hover { background: #00d6ab; }
+    #recordBtn { background: #ff9800; display: none; }
+    #recordBtn:hover { background: #e68a00; }
+    .display-box {
+      margin: 20px 0;
+      background: #27293d;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    .label { color: #888; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
+    #valueDisplay {
+      font-size: 3.5rem;
+      color: #ff8d72;
+      font-weight: bold;
+      margin-top: 5px;
+    }
+    canvas {
+      background: #14141f;
+      border: 1px solid #333;
+      border-radius: 8px;
+      margin-top: 15px;
+      width: 100%;
+      height: 300px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>BioAmp EEG Real-Time Monitor</h1>
+    <p>ESP8266 Live Analog Pin A0 Signal Dashboard</p>
+    
+    <button id="connectBtn" class="btn">Connect to ESP8266</button>
+    <button id="recordBtn" class="btn">Start Recording CSV</button>
+
+    <div class="display-box">
+      <div class="label">Exact ADC Reading (0 - 1023)</div>
+      <div id="valueDisplay">--</div>
+    </div>
+
+    <canvas id="plotCanvas" width="750" height="300"></canvas>
+  </div>
+
+  <script>
+    let port;
+    let reader;
+    let isRecording = false;
+    let recordedData = [];
+    let startTime = 0;
+
+    const connectBtn = document.getElementById('connectBtn');
+    const recordBtn = document.getElementById('recordBtn');
+    const valueDisplay = document.getElementById('valueDisplay');
+    const canvas = document.getElementById('plotCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let dataPoints = new Array(canvas.width).fill(canvas.height / 2);
+
+    // --- CONNECTION LOGIC ---
+    connectBtn.addEventListener('click', async () => {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        
+        connectBtn.textContent = "CONNECTED ✓";
+        connectBtn.style.background = "#2dce89";
+        connectBtn.style.color = "#fff";
+        connectBtn.disabled = true;
+        recordBtn.style.display = "inline-block"; // Show record button
+
+        readSerialData();
+      } catch (err) {
+        alert("Serial Connection Failed: " + err);
+      }
+    });
+
+    // --- RECORDING LOGIC ---
+    recordBtn.addEventListener('click', () => {
+      if (!isRecording) {
+        // Start Recording
+        isRecording = true;
+        startTime = Date.now();
+        recordedData = ["Time(ms),SignalValue"]; // Create CSV Header
+        recordBtn.textContent = "Stop & Save Data";
+        recordBtn.style.background = "#ff4d4d";
+        recordBtn.style.color = "#fff";
+      } else {
+        // Stop & Save
+        isRecording = false;
+        recordBtn.textContent = "Start Recording CSV";
+        recordBtn.style.background = "#ff9800";
+        recordBtn.style.color = "#121212";
+        downloadCSV();
+      }
+    });
+
+    function downloadCSV() {
+      const csvContent = recordedData.join("\n");
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `EEG_Recording_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // --- DATA READING & PLOTTING ---
+    async function readSerialData() {
+      const textDecoder = new TextDecoderStream();
+      port.readable.pipeTo(textDecoder.writable);
+      reader = textDecoder.readable.getReader();
+
+      let buffer = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        
+        buffer += value;
+        let lines = buffer.split('\n');
+        buffer = lines.pop(); 
+
+        for (let line of lines) {
+          let rawVal = parseInt(line.trim());
+          if (!isNaN(rawVal)) {
+            valueDisplay.textContent = rawVal;
+
+            // If recording is active, save the timestamp and value
+            if (isRecording) {
+              let elapsedTime = Date.now() - startTime;
+              recordedData.push(`${elapsedTime},${rawVal}`);
+            }
+
+            let y = canvas.height - ((rawVal / 1023) * canvas.height);
+            dataPoints.push(y);
+            dataPoints.shift();
+            drawWaveform();
+          }
+        }
+      }
+    }
+
+    function drawWaveform() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.beginPath();
+      ctx.strokeStyle = '#222233';
+      ctx.moveTo(0, canvas.height / 2);
+      ctx.lineTo(canvas.width, canvas.height / 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.strokeStyle = '#00f2c3';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < dataPoints.length; i++) {
+        if (i === 0) ctx.moveTo(i, dataPoints[i]);
+        else ctx.lineTo(i, dataPoints[i]);
+      }
+      ctx.stroke();
+    }
+  </script>
+</body>
+</html>
