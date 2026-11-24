@@ -94,6 +94,74 @@ export class InputController {
   setupKeyboardListeners() {
     window.addEventListener('keydown', this.handleKeyDown, false);
     this.setupWebSocketBridge();
+    this.setupFeedbackUI();
+  }
+
+  // ---------------------------------------------------------------------------
+  // BCI FEEDBACK: "was that jump / lane switch right?"  Keys: Y = yes, N = no,
+  // F = "I was focusing but nothing happened", R = "I'm relaxed right now".
+  // Answers go back to live_bci.py over the WebSocket so the model can learn.
+  // ---------------------------------------------------------------------------
+  sendFeedback(key) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ feedback: key }));
+    }
+    this.hideFeedbackPrompt();
+    this.flashFeedback(key);
+  }
+
+  setupFeedbackUI() {
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);' +
+      'z-index:9999;display:none;padding:10px 14px;border-radius:12px;font:600 16px system-ui,sans-serif;' +
+      'background:rgba(20,20,30,.88);color:#fff;box-shadow:0 4px 18px rgba(0,0,0,.4);' +
+      'align-items:center;gap:10px;pointer-events:auto';
+    box.innerHTML = '<span id="bciFbText"></span>' +
+      '<button data-k="y" style="font:inherit;padding:6px 14px;border:0;border-radius:8px;background:#2ecc71;color:#fff;cursor:pointer">Yes (Y)</button>' +
+      '<button data-k="n" style="font:inherit;padding:6px 14px;border:0;border-radius:8px;background:#e74c3c;color:#fff;cursor:pointer">No (N)</button>';
+    box.querySelectorAll('button').forEach(b =>
+      b.addEventListener('click', () => this.sendFeedback(b.dataset.k)));
+    document.body.appendChild(box);
+    this.fbBox = box;
+
+    const hint = document.createElement('div');
+    hint.style.cssText = 'position:fixed;right:12px;bottom:10px;z-index:9998;padding:4px 8px;' +
+      'border-radius:6px;font:12px system-ui,sans-serif;color:#fff;background:rgba(0,0,0,.45);pointer-events:none';
+    hint.textContent = 'BCI feedback: Y right | N wrong | F missed focus | R relaxed';
+    document.body.appendChild(hint);
+    this.fbHint = hint;
+
+    this.handleFeedbackKey = (e) => {
+      const k = (e.key || '').toLowerCase();
+      if (['y', 'n', 'f', 'r'].includes(k) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        this.sendFeedback(k);
+      }
+    };
+    window.addEventListener('keydown', this.handleFeedbackKey, false);
+  }
+
+  showFeedbackPrompt(kind) {
+    if (!this.fbBox) return;
+    this.fbBox.querySelector('#bciFbText').textContent =
+      kind === 'blink' ? 'Jump - was that a real blink?' : 'Lane switch - were you focusing?';
+    this.fbBox.style.display = 'flex';
+    clearTimeout(this.fbTimer);
+    this.fbTimer = setTimeout(() => this.hideFeedbackPrompt(), 6000);
+  }
+
+  hideFeedbackPrompt() {
+    if (this.fbBox) this.fbBox.style.display = 'none';
+    clearTimeout(this.fbTimer);
+  }
+
+  flashFeedback(key) {
+    if (!this.fbHint) return;
+    const names = { y: 'Saved: right', n: 'Saved: wrong', f: 'Saved: missed focus', r: 'Saved: relaxed' };
+    this.fbHint.textContent = names[key];
+    clearTimeout(this.fbFlash);
+    this.fbFlash = setTimeout(() => {
+      this.fbHint.textContent = 'BCI feedback: Y right | N wrong | F missed focus | R relaxed';
+    }, 1500);
   }
 
   /**
@@ -109,6 +177,7 @@ export class InputController {
         try {
           const data = JSON.parse(event.data);
           const cmd = (data.action || data.command || '').toUpperCase();
+          if (cmd === 'FEEDBACK_ASK') { this.showFeedbackPrompt(data.kind); return; }
           if (cmd === 'BLINK' || cmd === 'JUMP') {
             this.processBciCommand('JUMP');
           } else if (cmd === 'CONCENTRATION' || cmd === 'SWITCH' || cmd === 'SWITCH_LANE') {
@@ -125,8 +194,15 @@ export class InputController {
       this.ws.onerror = () => {
         // Silent fallback: standard keyboard simulation mode active
       };
+      // Auto-reconnect so it doesn't matter whether the browser or live_bci.py starts first
+      this.ws.onclose = () => {
+        clearTimeout(this.wsRetry);
+        this.wsRetry = setTimeout(() => this.setupWebSocketBridge(), 2000);
+      };
     } catch (err) {
       // WebSocket unavailable
+      clearTimeout(this.wsRetry);
+      this.wsRetry = setTimeout(() => this.setupWebSocketBridge(), 2000);
     }
   }
 
@@ -250,5 +326,8 @@ export class InputController {
 
   destroy() {
     window.removeEventListener('keydown', this.handleKeyDown);
+    if (this.handleFeedbackKey) window.removeEventListener('keydown', this.handleFeedbackKey);
+    clearTimeout(this.wsRetry);
+    if (this.ws) { this.ws.onclose = null; this.ws.close(); }
   }
 }
